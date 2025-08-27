@@ -4,7 +4,7 @@ interface CosmicObject {
   slug: string
   title: string
   content?: string
-  metadata: Record<string, any>
+  metadata?: Record<string, any>
   type: string
   created_at: string
   modified_at: string
@@ -88,5 +88,5 @@ export type GameRating = 'Everyone' | 'Everyone 10+' | 'Teen' | 'Mature 17+'
 // Platform type literals - EXACT values from content model
 export type GamePlatform = 'PC' | 'PlayStation' | 'Xbox' | 'Nintendo Switch' | 'Mobile'
 
-// Utility types
-export type OptionalMetadata<T> = Partial<T['metadata']>
+// Utility types - Fixed the type constraint
+export type OptionalMetadata<T extends { metadata?: any }> = Partial<T['metadata']>

@@ -1,48 +1,43 @@
-// src/pages/games/[slug].astro
 ---
-export interface Props {
-  game: any; // TODO: Define proper type
-}
-
 import Layout from '../../layouts/Layout.astro'
 import Header from '../../components/Header.astro'
 import Footer from '../../components/Footer.astro'
 import GameCard from '../../components/GameCard.astro'
 import CosmicBadge from '../../components/CosmicBadge.astro'
-import { getAllGames, getGameBySlug, getGamesByGenre } from '../../lib/cosmic'
+import { getGameBySlug, getGamesByGenre, getAllGames } from '../../lib/cosmic'
+import type { Game, Genre, Developer } from '../../../types'
 
-// Generate static paths for all games
-export async function getStaticPaths() {
-  const games = await getAllGames()
-  
-  return games.map(game => ({
-    params: { slug: game.slug },
-    props: { game }
-  }))
+export interface Props {
+  slug: string
 }
 
-// Get the current game from props
-const { game } = Astro.props
+// Get the slug from params
+const { slug } = Astro.params
 
-// If no game found, return 404
-if (!game) {
+if (!slug) {
   return Astro.redirect('/404')
 }
 
-// Safe access to game properties
-const gameTitle = game.metadata?.game_title || game.title || 'Untitled Game'
-const description = game.metadata?.description || ''
-const featuredImage = game.metadata?.featured_image
-const screenshots = game.metadata?.screenshots || []
-const genre = game.metadata?.genre
-const developer = game.metadata?.developer
-const releaseDate = game.metadata?.release_date
-const rating = game.metadata?.rating
-const platforms = game.metadata?.platform || []
+// Fetch the game data
+const game = await getGameBySlug(slug)
 
-// Get related games from the same genre
-let relatedGames = []
-if (genre?.id) {
+if (!game || !game.metadata) {
+  return Astro.redirect('/404')
+}
+
+// Extract game data with proper null checks
+const gameTitle = game.metadata.game_title || game.title || 'Unknown Game'
+const description = game.metadata.description || ''
+const screenshots = game.metadata.screenshots || []
+const platforms = game.metadata.platform || []
+const rating = game.metadata.rating
+const releaseDate = game.metadata.release_date
+const genre = game.metadata.genre as Genre | undefined
+const developer = game.metadata.developer as Developer | undefined
+
+// Fetch related games from the same genre
+let relatedGames: Game[] = []
+if (genre) {
   try {
     const genreGames = await getGamesByGenre(genre.id)
     relatedGames = genreGames.filter(g => g.id !== game.id).slice(0, 3)
@@ -51,7 +46,11 @@ if (genre?.id) {
   }
 }
 
-// Format release date
+// Helper functions
+const cleanHTML = (html: string): string => {
+  return html.replace(/<script[^>]*>.*?<\/script>/gi, '')
+}
+
 const formatDate = (dateString: string): string => {
   try {
     const date = new Date(dateString)
@@ -65,201 +64,141 @@ const formatDate = (dateString: string): string => {
   }
 }
 
-// Clean HTML for display
-const cleanHTML = (html: string): string => {
-  return html
-}
-
 const bucketSlug = import.meta.env.COSMIC_BUCKET_SLUG
-
-// SEO metadata
-const pageTitle = `${gameTitle} - Gaming Hub`
-const pageDescription = description ? description.replace(/<[^>]*>/g, '').substring(0, 160) : `Learn more about ${gameTitle} and discover similar games.`
-const pageImage = featuredImage ? `${featuredImage.imgix_url}?w=1200&h=630&fit=crop&auto=format` : undefined
 ---
 
-<Layout title={pageTitle} description={pageDescription} image={pageImage}>
+<Layout title={`${gameTitle} - Gaming Hub`} description={cleanHTML(description).substring(0, 160)}>
   <Header />
   
   <main>
-    <!-- Game Hero Section -->
-    <section class="relative">
-      {featuredImage && (
-        <div class="absolute inset-0 z-0">
-          <img 
-            src={`${featuredImage.imgix_url}?w=2000&h=800&fit=crop&auto=format,compress&overlay=gradient-bottom`}
-            alt={gameTitle}
-            class="w-full h-full object-cover"
-            loading="eager"
-          />
-          <div class="absolute inset-0 bg-gradient-to-t from-gaming-darker via-gaming-darker/80 to-gaming-darker/40"></div>
-        </div>
-      )}
-      
-      <div class="relative z-10 py-20">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="max-w-4xl">
-            <!-- Genre Badge -->
-            {genre && (
-              <span 
-                class="inline-block px-4 py-2 rounded-full text-sm font-medium text-white mb-4"
-                style={`background-color: ${genre.metadata?.genre_color || '#6366f1'}`}
-              >
-                {genre.metadata?.genre_name || genre.title}
-              </span>
+    <!-- Game Header -->
+    <section class="py-16 bg-gradient-to-r from-gaming-darker to-gaming-dark">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+          <!-- Featured Image -->
+          <div class="order-2 lg:order-1">
+            {game.metadata.featured_image ? (
+              <img 
+                src={`${game.metadata.featured_image.imgix_url}?w=600&h=400&fit=crop&auto=format,compress`}
+                alt={`${gameTitle} featured image`}
+                class="w-full rounded-lg shadow-2xl"
+                width="600"
+                height="400"
+              />
+            ) : (
+              <div class="w-full h-96 bg-gradient-to-br from-primary-500 to-gaming-accent rounded-lg flex items-center justify-center">
+                <div class="text-center text-white">
+                  <svg class="w-16 h-16 mx-auto mb-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                  </svg>
+                  <p class="text-lg font-medium">{gameTitle}</p>
+                </div>
+              </div>
             )}
-            
-            <!-- Game Title -->
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-6">
+          </div>
+          
+          <!-- Game Info -->
+          <div class="order-1 lg:order-2">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">
               {gameTitle}
             </h1>
             
-            <!-- Game Meta Information -->
-            <div class="flex flex-wrap items-center gap-6 text-gray-300 mb-8">
+            <!-- Platforms -->
+            {platforms.length > 0 && (
+              <div class="flex flex-wrap gap-2 mb-6">
+                {platforms.map((platform: string) => (
+                  <span class="bg-gaming-accent/20 text-gaming-accent px-3 py-1 rounded-full text-sm font-medium">
+                    {platform}
+                  </span>
+                ))}
+              </div>
+            )}
+            
+            <!-- Game Description -->
+            {description && (
+              <div class="prose prose-invert max-w-none mb-8">
+                <div 
+                  class="text-gray-300 leading-relaxed"
+                  set:html={cleanHTML(description)}
+                />
+              </div>
+            )}
+            
+            <!-- Screenshots Gallery -->
+            {screenshots.length > 0 && (
+              <div class="mb-8">
+                <h3 class="text-xl font-bold text-white mb-4">Screenshots</h3>
+                <div class="grid grid-cols-2 gap-4">
+                  {screenshots.map((screenshot: any, index: number) => (
+                    <img 
+                      src={`${screenshot.imgix_url}?w=300&h=200&fit=crop&auto=format,compress`}
+                      alt={`${gameTitle} screenshot ${index + 1}`}
+                      class="rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                      width="300"
+                      height="200"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <!-- Game Details -->
+            <div class="grid grid-cols-2 gap-6 p-6 bg-gaming-dark rounded-lg">
+              <!-- Genre -->
+              {genre && (
+                <div>
+                  <h4 class="text-gray-400 text-sm font-medium mb-2">Genre</h4>
+                  <a 
+                    href={`/genres/${genre.slug}`}
+                    class="text-primary-400 hover:text-primary-300 font-medium transition-colors"
+                  >
+                    {genre.metadata?.genre_name || genre.title}
+                  </a>
+                </div>
+              )}
+              
+              <!-- Developer -->
               {developer && (
-                <div class="flex items-center">
-                  <svg class="w-5 h-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a2 2 0 104 0 2 2 0 00-4 0zm8-2a2 2 0 11-4 0 2 2 0 014 0z" clip-rule="evenodd" />
-                  </svg>
+                <div>
+                  <h4 class="text-gray-400 text-sm font-medium mb-2">Developer</h4>
                   <a 
                     href={`/developers/${developer.slug}`}
-                    class="hover:text-primary-400 transition-colors"
+                    class="text-primary-400 hover:text-primary-300 font-medium transition-colors"
                   >
                     {developer.metadata?.studio_name || developer.title}
                   </a>
                 </div>
               )}
               
+              <!-- Release Date -->
               {releaseDate && (
-                <div class="flex items-center">
-                  <svg class="w-5 h-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
-                  </svg>
-                  {formatDate(releaseDate)}
+                <div>
+                  <h4 class="text-gray-400 text-sm font-medium mb-2">Release Date</h4>
+                  <span class="text-white">{formatDate(releaseDate)}</span>
                 </div>
               )}
               
+              <!-- Rating -->
               {rating && (
-                <div class="flex items-center">
-                  <svg class="w-5 h-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                  </svg>
-                  {rating.value}
+                <div>
+                  <h4 class="text-gray-400 text-sm font-medium mb-2">Rating</h4>
+                  <span class="text-white">{rating.value}</span>
                 </div>
               )}
-            </div>
-            
-            <!-- Platforms -->
-            {platforms.length > 0 && (
-              <div class="flex flex-wrap gap-2 mb-8">
-                {platforms.map(platform => (
-                  <span class="inline-block bg-gray-800 text-gray-300 px-3 py-1 rounded-lg text-sm">
-                    {platform}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Game Content -->
-    <section class="py-16">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          <!-- Main Content -->
-          <div class="lg:col-span-2">
-            <!-- Description -->
-            {description && (
-              <div class="mb-12">
-                <h2 class="text-2xl font-bold text-white mb-6">About This Game</h2>
-                <div 
-                  class="prose prose-gray prose-invert max-w-none"
-                  set:html={cleanHTML(description)}
-                />
-              </div>
-            )}
-            
-            <!-- Screenshots -->
-            {screenshots.length > 0 && (
-              <div class="mb-12">
-                <h2 class="text-2xl font-bold text-white mb-6">Screenshots</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {screenshots.map((screenshot, index) => (
-                    <div class="relative group overflow-hidden rounded-lg">
-                      <img 
-                        src={`${screenshot.imgix_url}?w=800&h=450&fit=crop&auto=format,compress`}
-                        alt={`${gameTitle} screenshot ${index + 1}`}
-                        class="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                        width="400"
-                        height="256"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <!-- Sidebar -->
-          <div class="lg:col-span-1">
-            <div class="bg-gaming-dark rounded-lg p-6 sticky top-8">
-              <h3 class="text-xl font-bold text-white mb-6">Game Details</h3>
               
-              <div class="space-y-4">
-                {genre && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Genre</span>
-                    <a 
-                      href={`/genres/${genre.slug}`}
-                      class="text-white hover:text-primary-400 transition-colors"
-                    >
-                      {genre.metadata?.genre_name || genre.title}
-                    </a>
+              <!-- Platforms (detailed) -->
+              {platforms.length > 0 && (
+                <div class="col-span-2">
+                  <h4 class="text-gray-400 text-sm font-medium mb-2">Available On</h4>
+                  <div class="flex flex-wrap gap-2">
+                    {platforms.map((platform: string) => (
+                      <span class="bg-gray-700 text-gray-300 px-3 py-1 rounded text-sm">
+                        {platform}
+                      </span>
+                    ))}
                   </div>
-                )}
-                
-                {developer && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Developer</span>
-                    <a 
-                      href={`/developers/${developer.slug}`}
-                      class="text-white hover:text-primary-400 transition-colors"
-                    >
-                      {developer.metadata?.studio_name || developer.title}
-                    </a>
-                  </div>
-                )}
-                
-                {releaseDate && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Release Date</span>
-                    <span class="text-white">{formatDate(releaseDate)}</span>
-                  </div>
-                )}
-                
-                {rating && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Rating</span>
-                    <span class="text-white">{rating.value}</span>
-                  </div>
-                )}
-                
-                {platforms.length > 0 && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-2">Platforms</span>
-                    <div class="flex flex-wrap gap-2">
-                      {platforms.map(platform => (
-                        <span class="inline-block bg-gray-800 text-gray-300 px-2 py-1 rounded text-sm">
-                          {platform}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -268,18 +207,16 @@ const pageImage = featuredImage ? `${featuredImage.imgix_url}?w=1200&h=630&fit=c
 
     <!-- Related Games -->
     {relatedGames.length > 0 && (
-      <section class="py-16 bg-gaming-dark border-t border-gray-800">
+      <section class="py-16 bg-gaming-dark">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 class="text-3xl font-bold text-white mb-8 text-center">
+          <h2 class="text-3xl font-bold text-white mb-8">
             More {genre?.metadata?.genre_name || genre?.title || 'Similar'} Games
           </h2>
-          
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {relatedGames.map(relatedGame => (
+            {relatedGames.map((relatedGame: Game) => (
               <GameCard game={relatedGame} />
             ))}
           </div>
-          
           <div class="text-center mt-12">
             <a 
               href={genre ? `/genres/${genre.slug}` : '/games'}
@@ -299,26 +236,3 @@ const pageImage = featuredImage ? `${featuredImage.imgix_url}?w=1200&h=630&fit=c
   <Footer />
   <CosmicBadge bucketSlug={bucketSlug} />
 </Layout>
-
-<style>
-  .prose {
-    color: #e5e7eb;
-  }
-  
-  .prose p {
-    margin-bottom: 1rem;
-    line-height: 1.75;
-  }
-  
-  .prose strong {
-    color: #ffffff;
-    font-weight: 600;
-  }
-  
-  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-    color: #ffffff;
-    font-weight: 700;
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-  }
-</style>
