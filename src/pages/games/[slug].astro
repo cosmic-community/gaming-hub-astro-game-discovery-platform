@@ -1,57 +1,38 @@
 // src/pages/games/[slug].astro
 ---
-export interface Props {
-  game: any; // TODO: Define proper type
-}
-
 import Layout from '../../layouts/Layout.astro'
 import Header from '../../components/Header.astro'
 import Footer from '../../components/Footer.astro'
-import GameCard from '../../components/GameCard.astro'
 import CosmicBadge from '../../components/CosmicBadge.astro'
-import { getAllGames, getGameBySlug, getGamesByGenre } from '../../lib/cosmic'
+import { getGameBySlug, getGamesByGenre, getAllGames } from '../../lib/cosmic'
+import type { GetStaticPaths } from 'astro'
 
-// Generate static paths for all games
-export async function getStaticPaths() {
+// Required function for static site generation
+export const getStaticPaths = (async () => {
   const games = await getAllGames()
   
-  return games.map(game => ({
+  return games.map((game) => ({
     params: { slug: game.slug },
-    props: { game }
   }))
-}
+}) satisfies GetStaticPaths
 
-// Get the current game from props
-const { game } = Astro.props
+const { slug } = Astro.params
 
-// If no game found, return 404
+// Get the game data
+const game = await getGameBySlug(slug!)
+
 if (!game) {
   return Astro.redirect('/404')
 }
 
-// Safe access to game properties
-const gameTitle = game.metadata?.game_title || game.title || 'Untitled Game'
-const description = game.metadata?.description || ''
-const featuredImage = game.metadata?.featured_image
-const screenshots = game.metadata?.screenshots || []
-const genre = game.metadata?.genre
-const developer = game.metadata?.developer
-const releaseDate = game.metadata?.release_date
-const rating = game.metadata?.rating
-const platforms = game.metadata?.platform || []
-
 // Get related games from the same genre
-let relatedGames = []
-if (genre?.id) {
-  try {
-    const genreGames = await getGamesByGenre(genre.id)
-    relatedGames = genreGames.filter(g => g.id !== game.id).slice(0, 3)
-  } catch (error) {
-    console.error('Error fetching related games:', error)
-  }
-}
+const relatedGames = game.metadata.genre 
+  ? (await getGamesByGenre(game.metadata.genre.id)).filter(g => g.id !== game.id).slice(0, 3)
+  : []
 
-// Format release date
+const bucketSlug = import.meta.env.COSMIC_BUCKET_SLUG
+
+// Helper functions
 const formatDate = (dateString: string): string => {
   try {
     const date = new Date(dateString)
@@ -65,98 +46,125 @@ const formatDate = (dateString: string): string => {
   }
 }
 
-// Clean HTML for display
-const cleanHTML = (html: string): string => {
-  return html
+const cleanDescription = (html: string): string => {
+  return html.replace(/<[^>]*>/g, '').slice(0, 160)
 }
-
-const bucketSlug = import.meta.env.COSMIC_BUCKET_SLUG
-
-// SEO metadata
-const pageTitle = `${gameTitle} - Gaming Hub`
-const pageDescription = description ? description.replace(/<[^>]*>/g, '').substring(0, 160) : `Learn more about ${gameTitle} and discover similar games.`
-const pageImage = featuredImage ? `${featuredImage.imgix_url}?w=1200&h=630&fit=crop&auto=format` : undefined
 ---
 
-<Layout title={pageTitle} description={pageDescription} image={pageImage}>
+<Layout 
+  title={`${game.metadata.game_title || game.title} - Gaming Hub`}
+  description={cleanDescription(game.metadata.description)}
+>
   <Header />
   
   <main>
     <!-- Game Hero Section -->
-    <section class="relative">
-      {featuredImage && (
-        <div class="absolute inset-0 z-0">
-          <img 
-            src={`${featuredImage.imgix_url}?w=2000&h=800&fit=crop&auto=format,compress&overlay=gradient-bottom`}
-            alt={gameTitle}
-            class="w-full h-full object-cover"
-            loading="eager"
-          />
-          <div class="absolute inset-0 bg-gradient-to-t from-gaming-darker via-gaming-darker/80 to-gaming-darker/40"></div>
-        </div>
-      )}
-      
-      <div class="relative z-10 py-20">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="max-w-4xl">
-            <!-- Genre Badge -->
-            {genre && (
-              <span 
-                class="inline-block px-4 py-2 rounded-full text-sm font-medium text-white mb-4"
-                style={`background-color: ${genre.metadata?.genre_color || '#6366f1'}`}
-              >
-                {genre.metadata?.genre_name || genre.title}
-              </span>
-            )}
+    <section class="py-16 bg-gradient-to-r from-gaming-darker to-gaming-dark">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <!-- Game Info -->
+          <div>
+            <div class="flex items-center gap-4 mb-6">
+              {game.metadata.genre && (
+                <span 
+                  class="px-3 py-1 rounded-full text-sm font-medium text-white"
+                  style={`background-color: ${game.metadata.genre.metadata?.genre_color || '#4F46E5'}`}
+                >
+                  {game.metadata.genre.metadata?.genre_name || game.metadata.genre.title}
+                </span>
+              )}
+              
+              {game.metadata.rating && (
+                <span class="px-3 py-1 bg-gray-800 rounded-full text-sm text-gray-300">
+                  {game.metadata.rating.value}
+                </span>
+              )}
+              
+              {game.metadata.featured_game && (
+                <span class="px-3 py-1 bg-gaming-accent rounded-full text-sm text-white font-medium">
+                  Featured
+                </span>
+              )}
+            </div>
             
-            <!-- Game Title -->
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-6">
-              {gameTitle}
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">
+              {game.metadata.game_title || game.title}
             </h1>
             
-            <!-- Game Meta Information -->
-            <div class="flex flex-wrap items-center gap-6 text-gray-300 mb-8">
-              {developer && (
-                <div class="flex items-center">
-                  <svg class="w-5 h-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a2 2 0 104 0 2 2 0 00-4 0zm8-2a2 2 0 11-4 0 2 2 0 014 0z" clip-rule="evenodd" />
-                  </svg>
+            <div class="prose prose-lg prose-invert mb-8">
+              <div set:html={game.metadata.description} />
+            </div>
+            
+            <!-- Game Details -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+              {game.metadata.developer && (
+                <div>
+                  <h3 class="text-sm font-medium text-gray-400 mb-2">Developer</h3>
                   <a 
-                    href={`/developers/${developer.slug}`}
-                    class="hover:text-primary-400 transition-colors"
+                    href={`/developers/${game.metadata.developer.slug}`}
+                    class="text-lg text-white hover:text-primary-400 transition-colors"
                   >
-                    {developer.metadata?.studio_name || developer.title}
+                    {game.metadata.developer.metadata?.studio_name || game.metadata.developer.title}
                   </a>
                 </div>
               )}
               
-              {releaseDate && (
-                <div class="flex items-center">
-                  <svg class="w-5 h-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
-                  </svg>
-                  {formatDate(releaseDate)}
+              {game.metadata.release_date && (
+                <div>
+                  <h3 class="text-sm font-medium text-gray-400 mb-2">Release Date</h3>
+                  <p class="text-lg text-white">
+                    {formatDate(game.metadata.release_date)}
+                  </p>
                 </div>
               )}
               
-              {rating && (
-                <div class="flex items-center">
-                  <svg class="w-5 h-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                  </svg>
-                  {rating.value}
+              {game.metadata.platform && game.metadata.platform.length > 0 && (
+                <div class="sm:col-span-2">
+                  <h3 class="text-sm font-medium text-gray-400 mb-2">Available On</h3>
+                  <div class="flex flex-wrap gap-2">
+                    {game.metadata.platform.map((platform) => (
+                      <span class="px-3 py-1 bg-gaming-dark border border-gray-700 rounded-lg text-sm text-gray-300">
+                        {platform}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
             
-            <!-- Platforms -->
-            {platforms.length > 0 && (
-              <div class="flex flex-wrap gap-2 mb-8">
-                {platforms.map(platform => (
-                  <span class="inline-block bg-gray-800 text-gray-300 px-3 py-1 rounded-lg text-sm">
-                    {platform}
-                  </span>
-                ))}
+            <!-- Developer Website Link -->
+            {game.metadata.developer?.metadata?.website && (
+              <a 
+                href={game.metadata.developer.metadata.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                Visit Developer
+                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            )}
+          </div>
+          
+          <!-- Featured Image -->
+          <div class="order-first lg:order-last">
+            {game.metadata.featured_image ? (
+              <img 
+                src={`${game.metadata.featured_image.imgix_url}?w=800&h=600&fit=crop&auto=format,compress`}
+                alt={game.metadata.game_title || game.title}
+                class="w-full rounded-lg shadow-xl"
+                loading="eager"
+                width="800"
+                height="600"
+              />
+            ) : (
+              <div class="w-full h-96 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg flex items-center justify-center">
+                <div class="text-center">
+                  <div class="text-6xl mb-4">🎮</div>
+                  <p class="text-gray-400">Game Image</p>
+                </div>
               </div>
             )}
           </div>
@@ -164,161 +172,121 @@ const pageImage = featuredImage ? `${featuredImage.imgix_url}?w=1200&h=630&fit=c
       </div>
     </section>
 
-    <!-- Game Content -->
-    <section class="py-16">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          <!-- Main Content -->
-          <div class="lg:col-span-2">
-            <!-- Description -->
-            {description && (
-              <div class="mb-12">
-                <h2 class="text-2xl font-bold text-white mb-6">About This Game</h2>
-                <div 
-                  class="prose prose-gray prose-invert max-w-none"
-                  set:html={cleanHTML(description)}
+    <!-- Screenshots Section -->
+    {game.metadata.screenshots && game.metadata.screenshots.length > 0 && (
+      <section class="py-16 border-t border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 class="text-3xl font-bold text-white mb-8">Screenshots</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {game.metadata.screenshots.map((screenshot, index) => (
+              <div class="group cursor-pointer">
+                <img 
+                  src={`${screenshot.imgix_url}?w=600&h=400&fit=crop&auto=format,compress`}
+                  alt={`${game.metadata.game_title || game.title} screenshot ${index + 1}`}
+                  class="w-full h-64 object-cover rounded-lg shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105"
+                  loading="lazy"
+                  width="600"
+                  height="400"
                 />
               </div>
-            )}
-            
-            <!-- Screenshots -->
-            {screenshots.length > 0 && (
-              <div class="mb-12">
-                <h2 class="text-2xl font-bold text-white mb-6">Screenshots</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {screenshots.map((screenshot, index) => (
-                    <div class="relative group overflow-hidden rounded-lg">
-                      <img 
-                        src={`${screenshot.imgix_url}?w=800&h=450&fit=crop&auto=format,compress`}
-                        alt={`${gameTitle} screenshot ${index + 1}`}
-                        class="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                        width="400"
-                        height="256"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <!-- Sidebar -->
-          <div class="lg:col-span-1">
-            <div class="bg-gaming-dark rounded-lg p-6 sticky top-8">
-              <h3 class="text-xl font-bold text-white mb-6">Game Details</h3>
-              
-              <div class="space-y-4">
-                {genre && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Genre</span>
-                    <a 
-                      href={`/genres/${genre.slug}`}
-                      class="text-white hover:text-primary-400 transition-colors"
-                    >
-                      {genre.metadata?.genre_name || genre.title}
-                    </a>
-                  </div>
-                )}
-                
-                {developer && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Developer</span>
-                    <a 
-                      href={`/developers/${developer.slug}`}
-                      class="text-white hover:text-primary-400 transition-colors"
-                    >
-                      {developer.metadata?.studio_name || developer.title}
-                    </a>
-                  </div>
-                )}
-                
-                {releaseDate && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Release Date</span>
-                    <span class="text-white">{formatDate(releaseDate)}</span>
-                  </div>
-                )}
-                
-                {rating && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-1">Rating</span>
-                    <span class="text-white">{rating.value}</span>
-                  </div>
-                )}
-                
-                {platforms.length > 0 && (
-                  <div>
-                    <span class="text-gray-400 text-sm block mb-2">Platforms</span>
-                    <div class="flex flex-wrap gap-2">
-                      {platforms.map(platform => (
-                        <span class="inline-block bg-gray-800 text-gray-300 px-2 py-1 rounded text-sm">
-                          {platform}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Related Games -->
-    {relatedGames.length > 0 && (
-      <section class="py-16 bg-gaming-dark border-t border-gray-800">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 class="text-3xl font-bold text-white mb-8 text-center">
-            More {genre?.metadata?.genre_name || genre?.title || 'Similar'} Games
-          </h2>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {relatedGames.map(relatedGame => (
-              <GameCard game={relatedGame} />
             ))}
-          </div>
-          
-          <div class="text-center mt-12">
-            <a 
-              href={genre ? `/genres/${genre.slug}` : '/games'}
-              class="inline-flex items-center bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-            >
-              View All {genre?.metadata?.genre_name || 'Games'}
-              <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </a>
           </div>
         </div>
       </section>
     )}
+
+    <!-- Related Games Section -->
+    {relatedGames.length > 0 && (
+      <section class="py-16 bg-gaming-dark border-t border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between items-center mb-8">
+            <h2 class="text-3xl font-bold text-white">
+              More {game.metadata.genre?.metadata?.genre_name || 'Similar'} Games
+            </h2>
+            {game.metadata.genre && (
+              <a 
+                href={`/genres/${game.metadata.genre.slug}`}
+                class="text-primary-400 hover:text-primary-300 font-medium transition-colors"
+              >
+                View All →
+              </a>
+            )}
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {relatedGames.map((relatedGame) => (
+              <article class="bg-gaming-darker rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <div class="aspect-w-16 aspect-h-9">
+                  {relatedGame.metadata.featured_image ? (
+                    <img 
+                      src={`${relatedGame.metadata.featured_image.imgix_url}?w=600&h=400&fit=crop&auto=format,compress`}
+                      alt={relatedGame.metadata.game_title || relatedGame.title}
+                      class="w-full h-48 object-cover"
+                      loading="lazy"
+                      width="600"
+                      height="400"
+                    />
+                  ) : (
+                    <div class="w-full h-48 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                      <div class="text-4xl">🎮</div>
+                    </div>
+                  )}
+                </div>
+                
+                <div class="p-6">
+                  <h3 class="text-xl font-bold text-white mb-2 hover:text-primary-400 transition-colors">
+                    <a href={`/games/${relatedGame.slug}`}>
+                      {relatedGame.metadata.game_title || relatedGame.title}
+                    </a>
+                  </h3>
+                  
+                  {relatedGame.metadata.description && (
+                    <p class="text-gray-400 text-sm line-clamp-2">
+                      {cleanDescription(relatedGame.metadata.description)}
+                    </p>
+                  )}
+                  
+                  <div class="flex justify-between items-center mt-4">
+                    <a 
+                      href={`/games/${relatedGame.slug}`}
+                      class="text-primary-400 hover:text-primary-300 font-medium text-sm transition-colors"
+                    >
+                      Learn More →
+                    </a>
+                    
+                    {relatedGame.metadata.rating && (
+                      <span class="text-xs text-gray-500">
+                        {relatedGame.metadata.rating.value}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- Back to Games -->
+    <section class="py-8 border-t border-gray-800">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center">
+          <a 
+            href="/games"
+            class="inline-flex items-center text-primary-400 hover:text-primary-300 font-medium transition-colors"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to All Games
+          </a>
+        </div>
+      </div>
+    </section>
   </main>
   
   <Footer />
   <CosmicBadge bucketSlug={bucketSlug} />
 </Layout>
-
-<style>
-  .prose {
-    color: #e5e7eb;
-  }
-  
-  .prose p {
-    margin-bottom: 1rem;
-    line-height: 1.75;
-  }
-  
-  .prose strong {
-    color: #ffffff;
-    font-weight: 600;
-  }
-  
-  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-    color: #ffffff;
-    font-weight: 700;
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-  }
-</style>
