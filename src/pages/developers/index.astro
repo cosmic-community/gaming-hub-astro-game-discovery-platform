@@ -1,0 +1,96 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import Header from '../../components/Header.astro'
+import Footer from '../../components/Footer.astro'
+import DeveloperCard from '../../components/DeveloperCard.astro'
+import CosmicBadge from '../../components/CosmicBadge.astro'
+import { getAllDevelopers, getGamesByDeveloper } from '../../lib/cosmic'
+
+// Fetch all developers and their game counts
+const allDevelopers = await getAllDevelopers()
+
+const developersWithCounts = await Promise.all(
+  allDevelopers.map(async (developer) => {
+    const games = await getGamesByDeveloper(developer.id)
+    return {
+      developer,
+      gameCount: games.length
+    }
+  })
+)
+
+const bucketSlug = import.meta.env.COSMIC_BUCKET_SLUG
+---
+
+<Layout title="Game Developers - Gaming Hub" description="Discover top game developers and studios. Learn about Epic Games, CD Projekt Red, and other leading game development companies.">
+  <Header />
+  
+  <main>
+    <!-- Header Section -->
+    <section class="py-16 bg-gradient-to-r from-gaming-darker to-gaming-dark border-b border-gray-800">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center">
+          <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">
+            Game Developers
+          </h1>
+          <p class="text-xl text-gray-300 mb-6 max-w-3xl mx-auto">
+            Meet the talented studios and developers behind your favorite games. Explore their portfolios and discover new titles.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Developers Grid Section -->
+    <section class="py-16">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {developersWithCounts.length > 0 ? (
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {developersWithCounts.map(({ developer, gameCount }) => (
+              <DeveloperCard developer={developer} gameCount={gameCount} />
+            ))}
+          </div>
+        ) : (
+          <div class="text-center py-16">
+            <div class="text-6xl mb-4">🏢</div>
+            <h2 class="text-2xl font-bold text-white mb-2">No Developers Found</h2>
+            <p class="text-gray-400">
+              Check back later for more developer profiles!
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+
+    <!-- Browse Games CTA -->
+    <section class="py-16 bg-gaming-dark border-t border-gray-800">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="text-3xl font-bold text-white mb-4">
+          Discover Amazing Games
+        </h2>
+        <p class="text-gray-400 text-lg mb-8">
+          Explore games from these talented developers and discover your next favorite gaming experience.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <a 
+            href="/games" 
+            class="inline-flex items-center bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+          >
+            Browse All Games
+            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+          <a 
+            href="/genres" 
+            class="inline-flex items-center border border-gray-600 hover:border-gray-500 text-white px-6 py-3 rounded-lg font-medium transition-colors hover:bg-gray-800"
+          >
+            Browse by Genre
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+  
+  <Footer />
+  <CosmicBadge bucketSlug={bucketSlug} />
+</Layout>

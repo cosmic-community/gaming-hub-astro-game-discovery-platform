@@ -1,0 +1,77 @@
+---
+import type { Genre } from '../../types'
+
+export interface Props {
+  genre: Genre
+  gameCount?: number
+}
+
+const { genre, gameCount = 0 } = Astro.props
+
+// Safe access to genre properties
+const genreName = genre.metadata?.genre_name || genre.title || 'Unknown Genre'
+const description = genre.metadata?.description || ''
+const genreColor = genre.metadata?.genre_color || '#6366f1'
+
+// Generate a background pattern based on genre color
+const lighterColor = genreColor + '20' // Add transparency
+---
+
+<article class="group relative overflow-hidden rounded-lg bg-gaming-dark hover:bg-gray-800 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+  <!-- Colored accent bar -->
+  <div 
+    class="absolute top-0 left-0 w-full h-1"
+    style={`background-color: ${genreColor}`}
+  ></div>
+  
+  <!-- Background pattern -->
+  <div 
+    class="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity"
+    style={`background: linear-gradient(135deg, ${lighterColor} 0%, transparent 50%)`}
+  ></div>
+  
+  <div class="relative p-6">
+    <!-- Genre Icon and Color -->
+    <div class="flex items-center mb-4">
+      <div 
+        class="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4"
+        style={`background-color: ${genreColor}`}
+      >
+        {genreName.charAt(0)}
+      </div>
+      <div>
+        <h3 class="text-xl font-bold text-white group-hover:text-primary-400 transition-colors">
+          <a href={`/genres/${genre.slug}`}>
+            {genreName}
+          </a>
+        </h3>
+        {gameCount > 0 && (
+          <p class="text-gray-400 text-sm">
+            {gameCount} {gameCount === 1 ? 'Game' : 'Games'}
+          </p>
+        )}
+      </div>
+    </div>
+    
+    <!-- Description -->
+    {description && (
+      <p class="text-gray-400 text-sm leading-relaxed mb-4">
+        {description}
+      </p>
+    )}
+    
+    <!-- Explore Link -->
+    <div class="flex justify-end">
+      <a 
+        href={`/genres/${genre.slug}`}
+        class="inline-flex items-center text-sm font-medium hover:underline transition-colors"
+        style={`color: ${genreColor}`}
+      >
+        Explore Games
+        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</article>

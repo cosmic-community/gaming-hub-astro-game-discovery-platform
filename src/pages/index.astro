@@ -1,0 +1,175 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Header from '../components/Header.astro'
+import Footer from '../components/Footer.astro'
+import GameCard from '../components/GameCard.astro'
+import GenreCard from '../components/GenreCard.astro'
+import CosmicBadge from '../components/CosmicBadge.astro'
+import { getFeaturedGames, getAllGenres, getGamesByGenre } from '../lib/cosmic'
+
+// Fetch featured games and genres
+const [featuredGames, allGenres] = await Promise.all([
+  getFeaturedGames(),
+  getAllGenres()
+])
+
+// Get game counts per genre
+const genresWithCounts = await Promise.all(
+  allGenres.map(async (genre) => {
+    const games = await getGamesByGenre(genre.id)
+    return {
+      genre,
+      gameCount: games.length
+    }
+  })
+)
+
+const bucketSlug = import.meta.env.COSMIC_BUCKET_SLUG
+---
+
+<Layout title="Gaming Hub - Discover Amazing Games" description="Explore an amazing collection of games across different genres. Discover new favorites and learn about top game developers.">
+  <Header />
+  
+  <main>
+    <!-- Hero Section -->
+    <section class="relative bg-gradient-to-r from-gaming-darker via-gaming-dark to-gaming-darker py-20">
+      <div class="absolute inset-0 bg-gradient-to-r from-primary-900/20 to-gaming-accent/20"></div>
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h1 class="text-4xl md:text-6xl font-bold text-white mb-6 animate-fade-in">
+          Discover Amazing 
+          <span class="bg-gradient-to-r from-primary-400 to-gaming-accent bg-clip-text text-transparent">
+            Games
+          </span>
+        </h1>
+        <p class="text-xl text-gray-300 mb-8 max-w-3xl mx-auto animate-slide-up">
+          Explore our curated collection of games across different genres. Find your next favorite gaming experience.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <a 
+            href="/games" 
+            class="bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-lg font-medium transition-colors inline-flex items-center justify-center"
+          >
+            Browse All Games
+            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+          <a 
+            href="/genres" 
+            class="border border-gray-600 hover:border-gray-500 text-white px-8 py-3 rounded-lg font-medium transition-colors inline-flex items-center justify-center hover:bg-gray-800"
+          >
+            Explore Genres
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Featured Games Section -->
+    {featuredGames.length > 0 && (
+      <section class="py-16 bg-gaming-dark">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="text-center mb-12">
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">
+              Featured Games
+            </h2>
+            <p class="text-gray-400 text-lg max-w-2xl mx-auto">
+              Discover the most popular and critically acclaimed games in our collection.
+            </p>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {featuredGames.slice(0, 6).map(game => (
+              <GameCard game={game} featured={true} />
+            ))}
+          </div>
+          
+          {featuredGames.length > 6 && (
+            <div class="text-center mt-12">
+              <a 
+                href="/games" 
+                class="inline-flex items-center bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                View All Games
+                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
+            </div>
+          )}
+        </div>
+      </section>
+    )}
+
+    <!-- Genres Section -->
+    {allGenres.length > 0 && (
+      <section class="py-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="text-center mb-12">
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">
+              Browse by Genre
+            </h2>
+            <p class="text-gray-400 text-lg max-w-2xl mx-auto">
+              Find games that match your interests. From action-packed adventures to strategic challenges.
+            </p>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {genresWithCounts.map(({ genre, gameCount }) => (
+              <GenreCard genre={genre} gameCount={gameCount} />
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- Call to Action -->
+    <section class="py-16 bg-gradient-to-r from-primary-900/10 to-gaming-accent/10 border-t border-gray-800">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">
+          Start Your Gaming Journey
+        </h2>
+        <p class="text-gray-400 text-lg mb-8">
+          Join thousands of gamers who have discovered their new favorite games through our platform.
+        </p>
+        <a 
+          href="/games" 
+          class="inline-flex items-center bg-gaming-accent hover:bg-purple-600 text-white px-8 py-4 rounded-lg font-medium text-lg transition-colors"
+        >
+          Explore Games Now
+          <svg class="w-6 h-6 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </a>
+      </div>
+    </section>
+  </main>
+  
+  <Footer />
+  <CosmicBadge bucketSlug={bucketSlug} />
+</Layout>
+
+<style>
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.8s ease-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.8s ease-out 0.2s both;
+  }
+</style>
