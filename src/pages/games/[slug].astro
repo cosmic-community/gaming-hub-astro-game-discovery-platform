@@ -1,24 +1,28 @@
+// src/pages/games/[slug].astro
 ---
 import Layout from '../../layouts/Layout.astro'
 import Header from '../../components/Header.astro'
 import Footer from '../../components/Footer.astro'
 import CosmicBadge from '../../components/CosmicBadge.astro'
-import { getGameBySlug, getGamesByGenre } from '../../lib/cosmic'
+import { getAllGames, getGameBySlug, getGamesByGenre } from '../../lib/cosmic'
 import type { Game } from '../../../types'
 
+// This function is required for static site generation
+export async function getStaticPaths() {
+  const games = await getAllGames()
+  
+  return games.map((game) => ({
+    params: { slug: game.slug },
+    props: { game }
+  }))
+}
+
 export interface Props {
-  slug: string
+  game: Game
 }
 
-// Get the slug from the URL parameters
-const { slug } = Astro.params
-
-if (!slug) {
-  throw new Error('Game slug is required')
-}
-
-// Fetch the game data
-const game = await getGameBySlug(slug)
+// Get the game from props (passed from getStaticPaths)
+const { game } = Astro.props
 
 if (!game) {
   return Astro.redirect('/404')
